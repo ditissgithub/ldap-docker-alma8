@@ -5,6 +5,24 @@
 # see https://github.com/docker/docker/issues/8231
 ulimit -n 1024
 
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Check if required environment variables are set
+required_vars=(ldap_root_passwd base_primary_dc base_secondary_dc base_subdomain_dc cn ou1 ou2 ou3 ou4 ou5 ou6 ou7)
+
+for var in "${required_vars[@]}"; do
+  if [ -z "${!var}" ]; then
+    echo "Error: Environment variable $var is not set." >&2
+    exit 1
+  fi
+done
+
+# Generate basedomain.ldif from the template
+envsubst < /ldap_config/basedomain.ldif.template > /ldap_config/basedomain.ldif
+envsubst < /ldap_config/chdomain.ldif.template > /ldap_config/chdomain.ldif
+envsubst < /ldap_config/
+
 OPENLDAP_ROOT_PASSWORD=${OPENLDAP_ROOT_PASSWORD:-$ldap_root_passwd}
 
 OPENLDAP_DEBUG_LEVEL=${OPENLDAP_DEBUG_LEVEL:-256}
@@ -35,29 +53,25 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
 
         # Generate hash of password
         OPENLDAP_ROOT_PASSWORD_HASH=$(slappasswd -s "${OPENLDAP_ROOT_PASSWORD}")
+        echo $OPENLDAP_ROOT_PASSWORD_HASH >> /ldap_root_hash_pw
 
-        # Update configuration with root password, root DN, and root suffix
-        sed -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" \
-            -e "s OPENLDAP_ROOT_DN ${OPENLDAP_ROOT_DN_PREFIX} g" \
-            -e "s OPENLDAP_SUFFIX ${OPENLDAP_ROOT_DN_SUFFIX} g" /usr/local/etc/openldap/first_config.ldif |
-            ldapmodify -Y EXTERNAL -H ldapi:/// -d $OPENLDAP_DEBUG_LEVEL
+        #Set OpenLDAP admin password.
+        sed -i -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" /ldap_config/chrootpw.ldif |
+        ldapadd -Y EXTERNAL -H ldapi:/// -f chrootpw.ldif > /dev/null 2>&1
+        
+        # Import basic Schemas.
+        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
+        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
+        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
 
-        # add test schema
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/local/etc/openldap/testPerson.ldif -d $OPENLDAP_DEBUG_LEVEL
+        # Update configuration with root password and Set your domain name on LDAP DB
+        sed -i -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" /ldap_config/chdomain.ldif |
+            ldapmodify -Y EXTERNAL -H ldapi:/// -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
 
-        # add useful schemas
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif -d $OPENLDAP_DEBUG_LEVEL
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif -d $OPENLDAP_DEBUG_LEVEL
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif -d $OPENLDAP_DEBUG_LEVEL
+        
+        
+        ldapadd -x -D cn=${cn},dc=${base_secondary_dc},dc=${base_primary_dc} -w ${ldap_root_passwd} -f /ldap_config/basedomain.ldif > /dev/null 2>&1
 
-        # load memberOf and refint modules
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/local/etc/openldap/load_modules.ldif -d $OPENLDAP_DEBUG_LEVEL
-
-        # configure memberOf module
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/local/etc/openldap/configure_memberof.ldif -d $OPENLDAP_DEBUG_LEVEL
-
-        # configure refint module
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /usr/local/etc/openldap/configure_refint.ldif -d $OPENLDAP_DEBUG_LEVEL
 
         # extract dc name from root DN suffix
         dc_name=$(echo "${OPENLDAP_ROOT_DN_SUFFIX}" | grep -Po "(?<=^dc\=)[\w\d]+")
