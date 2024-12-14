@@ -18,7 +18,7 @@ RUN dnf install epel-release -y && \
     
 RUN cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG && \
     chown ldap:ldap /var/lib/ldap/* && \
-    systemctl enable --now slapd
+    systemctl enable slapd
 
 # Add defaults for config
 COPY ./ldap_config /ldap_config
