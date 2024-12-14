@@ -1,12 +1,12 @@
 dn: cn=config
 changetype: modify
 add: olcServerID
-olcServerID: 001
+olcServerID: 002
 
 dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 add: olcSyncRepl
-olcSyncRepl: rid=001
+olcSyncRepl: rid=002
   provider=ldap://boson02.bose.res.in:389/
   bindmethod=simple
   binddn="cn=Manager,dc=nsm,dc=in"
