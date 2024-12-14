@@ -21,7 +21,7 @@ RUN cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG && 
     systemctl enable --now slapd
 
 # Add defaults for config
-
+COPY ./ldap_config /ldap_config
 
 
 
