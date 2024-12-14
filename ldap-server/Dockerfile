@@ -32,4 +32,4 @@ RUN chmod +x /usr/local/bin/ldap_run.sh
 # Expose default ports for ldap and ldaps
 EXPOSE 389 636
 
-CMD ["/usr/local/bin/ldap_run.sh"]
+ENTRYPOINT ["/usr/local/bin/ldap_run.sh"]
