@@ -17,7 +17,7 @@ olcRootDN: cn=$cn,dc=$base_secondary_dc,dc=$base_primary_dc
 dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 add: olcRootPW
-olcRootPW: {SSHA}IbBZpvCpqyJYp7yzZrWC2S8122er3UA4
+olcRootPW: OPENLDAP_ROOT_PASSWORD
 
 dn: olcDatabase={2}mdb,cn=config
 changetype: modify
