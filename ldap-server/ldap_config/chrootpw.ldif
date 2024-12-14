@@ -1,3 +1,4 @@
+# specify the password generated for [olcRootPW] section
 dn: olcDatabase={0}config,cn=config
 changetype: modify
 add: olcRootPW
