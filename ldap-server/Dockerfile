@@ -9,10 +9,12 @@ RUN dnf install wget vim procps-ng \
     libtool-ltdl-devel \
     openssl-devel \
     libdb-devel \
-    make chrony \ 
+    make chrony gettext \ 
     libtool autoconf  tar gcc perl perl-devel -y
 
-RUN dnf --enablerepo=epel -y install openldap-servers openldap-clients openldap openldap-devel
+RUN dnf install epel-release -y && \
+    dnf config-manager --set-enabled powertools && \
+    dnf --enablerepo=epel -y install openldap-servers openldap-clients openldap openldap-devel
     
 RUN cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG && \
     chown ldap:ldap /var/lib/ldap/* && \
