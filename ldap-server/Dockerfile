@@ -19,15 +19,17 @@ RUN dnf install epel-release -y && \
 RUN cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG && \
     chown ldap:ldap /var/lib/ldap/* && \
     systemctl enable --now slapd
+
 # Add defaults for config
 
 
 
 
 # Add startup scripts
-
+COPY ./ldap_run.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/ldap_run.sh
 
 # Expose default ports for ldap and ldaps
 EXPOSE 389 636
 
-CMD ["entrypoint.sh"]
+CMD ["/usr/local/bin/ldap_run.sh"]
