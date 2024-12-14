@@ -6,8 +6,7 @@
 ulimit -n 1024
 
 OPENLDAP_ROOT_PASSWORD=${OPENLDAP_ROOT_PASSWORD:-$ldap_root_passwd}
-OPENLDAP_ROOT_DN_PREFIX=${OPENLDAP_ROOT_DN_PREFIX:-'cn=Manager'}
-OPENLDAP_ROOT_DN_SUFFIX=${OPENLDAP_ROOT_DN_SUFFIX:-'dc=$base_secondary_dc,dc=$base_primary_dc'}
+
 OPENLDAP_DEBUG_LEVEL=${OPENLDAP_DEBUG_LEVEL:-256}
 
 # Only run if no config has happened fully before
@@ -16,10 +15,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
     user=`id | grep -Po "(?<=uid=)\d+"`
     if (( user == 0 ))
     then
-        # We are root, we can use user input!
-        # Bring in default databse config
-        cp /usr/local/etc/openldap/DB_CONFIG /var/lib/ldap/DB_CONFIG
-
+        
         # start the daemon in another process and make config changes
         slapd -h "ldap:/// ldaps:/// ldapi:///" -d $OPENLDAP_DEBUG_LEVEL &
         for ((i=30; i>0; i--))
