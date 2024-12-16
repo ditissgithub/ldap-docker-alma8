@@ -25,90 +25,65 @@ envsubst < /ldap_config/ldap.conf.template > /etc/openldap/ldap.conf
 OPENLDAP_DEBUG_LEVEL=${OPENLDAP_DEBUG_LEVEL:-256}
 
 
-# Only run if no config has happened fully before
+# Run initial setup if not already configured
 if [ ! -f /etc/openldap/CONFIGURED ]; then
+  # Check if running as root
+  if [[ "$(id -u)" -ne 0 ]]; then
+    echo "Error: Script must be run as root." >&2
+    exit 1
+  fi
 
-    user=`id | grep -Po "(?<=uid=)\d+"`
-    if (( user == 0 ))
-    then
-        
-        # start the daemon in another process and make config changes
-        slapd -h "ldap:/// ldaps:/// ldapi:///" -d $OPENLDAP_DEBUG_LEVEL &
-        for ((i=30; i>0; i--))
-        do
-            ping_result=`ldapsearch 2>&1 | grep "Can.t contact LDAP server"`
-            if [ -z "$ping_result" ]
-            then
-                break
-            fi
-            sleep 1
-        done
-        if [ $i -eq 0 ]
-        then
-            echo "slapd did not start correctly"
-            exit 1
-        fi
+  # Start slapd in the background
+  slapd -h "ldap:/// ldaps:/// ldapi:///" -d $OPENLDAP_DEBUG_LEVEL &
+  slapd_pid=$!
 
-        # Generate hash of password
-        OPENLDAP_ROOT_PASSWORD_HASH=$(slappasswd -s "${LDAP_ROOT_PASSWD}")
-        echo $OPENLDAP_ROOT_PASSWORD_HASH >> /ldap_root_hash_pw
-
-        #Set OpenLDAP admin password.
-        sed -i -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" /ldap_config/chrootpw.ldif |
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /ldap_config/chrootpw.ldif > /dev/null 2>&1
-        
-        # Import basic Schemas.
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
-        ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
-
-        # Update configuration with root password and Set your domain name on LDAP DB
-        sed -i -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" /ldap_config/chdomain.ldif |
-            ldapmodify -Y EXTERNAL -H ldapi:/// -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
-      
-      
-        ldapadd -x -D cn=${cn},dc=${base_secondary_dc},dc=${base_primary_dc} -w ${LDAP_ROOT_PASSWD} -f /ldap_config/basedomain.ldif > /dev/null 2>&1
-
-
-  
-
-        # stop the daemon
-        pid=$(ps -A | grep slapd | awk '{print $1}')
-        kill -2 $pid || echo $?
-
-        # ensure the daemon stopped
-        for ((i=30; i>0; i--))
-        do
-            exists=$(ps -A | grep $pid)
-            if [ -z "${exists}" ]
-            then
-                break
-            fi
-            sleep 1
-        done
-        if [ $i -eq 0 ]
-        then
-            echo "slapd did not stop correctly"
-            exit 1
-        fi
-    else
-          # Something has gone wrong with our image build
-          echo "FAILURE: Default configuration files from /contrib/ are not present in the image at /opt/openshift."
-          exit 1
+  # Wait for slapd to start
+  for i in {1..30}; do
+    if ldapsearch -Y EXTERNAL -H ldapi:/// -s base -b "cn=config" &>/dev/null; then
+      break
     fi
+    sleep 1
+  done
 
-    # Test configuration files, log checksum errors. Errors may be tolerated and repaired by slapd so don't exit
-    LOG=`slaptest 2>&1`
-    CHECKSUM_ERR=$(echo "${LOG}" | grep -Po "(?<=ldif_read_file: checksum error on \").+(?=\")")
-    for err in $CHECKSUM_ERR
-    do
-        echo "The file ${err} has a checksum error. Ensure that this file is not edited manually, or re-calculate the checksum."
-    done
+  if ! ps -p $slapd_pid &>/dev/null; then
+    echo "Error: slapd failed to start." >&2
+    exit 1
+  fi
 
-    rm -rf /ldap_config/*.template
+  # Generate root password hash
+  OPENLDAP_ROOT_PASSWORD_HASH=$(slappasswd -s "${LDAP_ROOT_PASSWD}")
+  echo "${OPENLDAP_ROOT_PASSWORD_HASH}" > /ldap_root_hash_pw
 
-    touch /etc/openldap/CONFIGURED
+  # Set root password
+  sed "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chrootpw.ldif | \
+    ldapadd -Y EXTERNAL -H ldapi:/// || { echo "Error: Failed to set root password."; exit 1; }
+
+  # Add basic schemas
+  for schema in cosine inetorgperson nis; do
+    ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/${schema}.ldif || \
+      { echo "Error: Failed to add schema ${schema}."; exit 1; }
+  done
+
+  # Configure the domain
+  sed "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chdomain.ldif | \
+    ldapmodify -Y EXTERNAL -H ldapi:/// || { echo "Error: Failed to configure domain."; exit 1; }
+
+  # Add basedomain entries
+  ldapadd -x -D "cn=${CN},dc=${base_secondary_dc},dc=${base_primary_dc}" \
+    -w "${LDAP_ROOT_PASSWD}" -f /ldap_config/basedomain.ldif || \
+    { echo "Error: Failed to add basedomain entries."; exit 1; }
+
+  # Stop slapd
+  kill -2 $slapd_pid
+  wait $slapd_pid || { echo "Error: slapd did not stop correctly."; exit 1; }
+
+  # Test configuration files
+  slaptest || echo "Warning: Configuration test failed. Check the output for details."
+
+  # Cleanup
+  rm -rf /ldap_config/*.template
+  touch /etc/openldap/CONFIGURED
 fi
 
-# Start the slapd service
-exec slapd -h "ldap:/// ldaps:///" -d $OPENLDAP_DEBUG_LEVEL
+# Start slapd in the foreground
+exec slapd -h "ldap:/// ldaps:/// ldapi:///" -d $OPENLDAP_DEBUG_LEVEL
