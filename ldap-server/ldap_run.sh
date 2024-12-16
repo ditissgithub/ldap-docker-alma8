@@ -55,7 +55,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
   echo "${OPENLDAP_ROOT_PASSWORD_HASH}" > /ldap_root_hash_pw
 
   # Set root password
-  sed "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chrootpw.ldif | \
+  sed -i "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chrootpw.ldif | \
     ldapadd -Y EXTERNAL -H ldapi:/// || { echo "Error: Failed to set root password."; exit 1; }
 
   # Add basic schemas
@@ -65,7 +65,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
   done
 
   # Configure the domain
-  sed "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chdomain.ldif | \
+  sed -i "s|OPENLDAP_ROOT_PASSWORD|${OPENLDAP_ROOT_PASSWORD_HASH}|g" /ldap_config/chdomain.ldif | \
     ldapmodify -Y EXTERNAL -H ldapi:/// || { echo "Error: Failed to configure domain."; exit 1; }
 
   # Add basedomain entries
