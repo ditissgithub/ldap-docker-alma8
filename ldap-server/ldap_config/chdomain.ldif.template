@@ -23,6 +23,6 @@ dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 add: olcAccess
 olcAccess: {0}to attrs=userPassword,shadowLastChange by
-  dn="cn=$cn,dc=$base_secondary_dc,dc=$base_primary_dc" write by anonymous auth by self write by * none
+  dn="cn=$CN,dc=$base_secondary_dc,dc=$base_primary_dc" write by anonymous auth by self write by * none
 olcAccess: {1}to dn.base="" by * read
 olcAccess: {2}to * by dn="cn=$cn,dc=$base_secondary_dc,dc=$base_primary_dc" write by * read
