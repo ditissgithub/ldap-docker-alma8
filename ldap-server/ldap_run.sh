@@ -50,7 +50,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
         fi
 
         # Generate hash of password
-        OPENLDAP_ROOT_PASSWORD_HASH=$(slappasswd -s "${ldap_root_passwd}")
+        OPENLDAP_ROOT_PASSWORD_HASH=$(slappasswd -s "${LDAP_ROOT_PASSWD}")
         echo $OPENLDAP_ROOT_PASSWORD_HASH >> /ldap_root_hash_pw
 
         #Set OpenLDAP admin password.
@@ -67,7 +67,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
             ldapmodify -Y EXTERNAL -H ldapi:/// -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
       
       
-        ldapadd -x -D cn=${cn},dc=${base_secondary_dc},dc=${base_primary_dc} -w ${ldap_root_passwd} -f /ldap_config/basedomain.ldif > /dev/null 2>&1
+        ldapadd -x -D cn=${cn},dc=${base_secondary_dc},dc=${base_primary_dc} -w ${LDAP_ROOT_PASSWD} -f /ldap_config/basedomain.ldif > /dev/null 2>&1
 
 
   
