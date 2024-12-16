@@ -28,5 +28,5 @@ SASL_NOCANON    on
 
 
 BASE   dc=$base_secondary_dc,dc=$base_primary_dc
-URI    ldap://$primary_server_url ldap://$secondary_server_url
+URI    ldap://$primary_server_uri ldap://$secondary_server_uri
 
