@@ -55,7 +55,7 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
 
         #Set OpenLDAP admin password.
         sed -i -e "s OPENLDAP_ROOT_PASSWORD ${OPENLDAP_ROOT_PASSWORD_HASH} g" /ldap_config/chrootpw.ldif |
-        ldapadd -Y EXTERNAL -H ldapi:/// -f chrootpw.ldif > /dev/null 2>&1
+        ldapadd -Y EXTERNAL -H ldapi:/// -f /ldap_config/chrootpw.ldif > /dev/null 2>&1
         
         # Import basic Schemas.
         ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif -d $OPENLDAP_DEBUG_LEVEL > /dev/null 2>&1
