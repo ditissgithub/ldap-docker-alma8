@@ -14,11 +14,6 @@ for var in "${required_vars[@]}"; do
   fi
 done
 
-# Generate configuration files from templates
-envsubst < /ldap_config/basedomain.ldif.template > /ldap_config/basedomain.ldif
-envsubst < /ldap_config/chdomain.ldif.template > /ldap_config/chdomain.ldif
-envsubst < /ldap_config/ldap.conf.template > /etc/openldap/ldap.conf
-envsubst < /ldap_config/nslcd.conf.template > /etc/nslcd.conf
 
 # Set default OpenLDAP debug level if not provided
 OPENLDAP_DEBUG_LEVEL=${OPENLDAP_DEBUG_LEVEL:-256}
@@ -30,6 +25,11 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
     echo "Error: Script must be run as root." >&2
     exit 1
   fi
+  # Generate configuration files from templates
+  envsubst < /ldap_config/basedomain.ldif.template > /ldap_config/basedomain.ldif
+  envsubst < /ldap_config/chdomain.ldif.template > /ldap_config/chdomain.ldif
+  envsubst < /ldap_config/ldap.conf.template > /etc/openldap/ldap.conf
+  envsubst < /ldap_config/nslcd.conf.template > /etc/nslcd.conf
 
   # Start slapd in the background
   slapd -h "ldap:/// ldaps:/// ldapi:///" -d 256 > /dev/null 2>&1 &
@@ -79,11 +79,28 @@ if [ ! -f /etc/openldap/CONFIGURED ]; then
   # Cleanup
   rm -rf /ldap_config/*.template
   touch /etc/openldap/CONFIGURED
+  ssh-keygen -A > /dev/null 2>&1
   #start the nslcd service
-  pgrep -x "nslcd" > /dev/null || /usr/sbin/nslcd
 fi
-ssh-keygen -A > /dev/null 2>&1
 
 # Start slapd in the foreground
-exec slapd -h "ldap:/// ldaps:/// ldapi:///" -d "$OPENLDAP_DEBUG_LEVEL"
-pgrep -x "nslcd" > /dev/null || /usr/sbin/nslcd
+if ! pgrep -x "slapd" > /dev/null; then
+    echo "Starting slapd..."
+    slapd -h "ldap:/// ldaps:/// ldapi:///" -d "$OPENLDAP_DEBUG_LEVEL" &
+fi
+
+# Wait for slapd to be ready
+echo "Waiting for slapd to start..."
+while ! ldapsearch -x -b "" -s base -LLL >/dev/null 2>&1; do
+    sleep 1
+done
+echo "slapd is ready."
+
+# Start nslcd
+if ! pgrep -x "nslcd" > /dev/null; then
+    echo "Starting nslcd..."
+    /usr/sbin/nslcd
+fi
+
+# Keep the container running
+wait
