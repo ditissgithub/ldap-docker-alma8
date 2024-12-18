@@ -103,4 +103,4 @@ if ! pgrep -x "nslcd" > /dev/null; then
 fi
 
 # Keep the container running
-wait
+timeout 10s wait
